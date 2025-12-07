@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Legal AI Assistant - Advanced</title>
+    <style>
+        body {
+            background: #0e0f11; color: #e5e7eb; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+            margin: 0; padding: 0; font-size: 15px;
+        }
+        .container {
+            display: flex; flex-direction: column; height: 100vh; max-width: 900px;
+            margin: 0 auto; padding: 0 20px;
+        }
+        .chat-header {
+            padding: 16px 0; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .chat-messages {
+            flex: 1; overflow-y: auto; padding: 40px 20px; display: flex;
+            flex-direction: column; gap: 30px;
+        }
+        .chat-input-container {
+            padding: 20px 0 30px 0; position: sticky; bottom: 0;
+            background: linear-gradient(to top, #0D0D0D 80%, transparent);
+        }
+        .message {
+            display: flex; gap: 15px; animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message.user { flex-direction: row-reverse; }
+        .message-avatar {
+            width: 28px; height: 28px; border-radius: 6px; 
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 500; flex-shrink: 0; font-size: 11px;
+            background: rgba(255,255,255,0.05); color: #9ca3af;
+        }
+        .message.user .message-avatar { 
+            background: rgba(255,255,255,0.08); color: #d1d5db;
+        }
+        .message-content {
+            flex: 1; padding: 12px 16px; max-width: 85%; line-height: 1.6;
+            background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 12px;
+        }
+        .message.user .message-content { 
+            background: rgba(255,255,255,0.05); 
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #d1d5db; 
+        }
+        .message.assistant .message-content {
+            background: transparent;
+            border: none;
+            border-left: 2px solid rgba(59, 130, 246, 0.4);
+            border-radius: 0;
+            padding-left: 16px;
+            padding-right: 0;
+            color: #d1d5db;
+        }
+        .empty-state {
+            text-align: center; padding: 60px 20px; color: #666;
+        }
+        .empty-state h1 {
+            font-size: 48px; margin-bottom: 16px; opacity: 0.9;
+        }
+        .suggestions {
+            display: flex; gap: 8px; margin-top: 24px; 
+            justify-content: center; flex-wrap: wrap;
+        }
+        .suggestion-card {
+            background: rgba(255,255,255,0.03); padding: 8px 14px; border-radius: 20px;
+            cursor: pointer; transition: all 0.15s; border: 1px solid rgba(255,255,255,0.1);
+            font-size: 12px; color: #9ca3af;
+        }
+        .suggestion-card:hover {
+            background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2);
+        }
+        .suggestion-card h4 {
+            display: none;
+        }
+        .suggestion-card p {
+            margin: 0; color: inherit; font-size: inherit;
+        }
+        h2 {
+            color: #2E8BFF; border-bottom: 2px solid #2E8BFF; padding-bottom: 10px;
+        }
+        .mode-selector {
+            margin: 20px 0; padding: 15px; background: #1a1a1a; border-radius: 8px;
+        }
+        .mode-selector label {
+            display: block; margin: 10px 0; cursor: pointer; padding: 8px;
+            background: #222; border-radius: 5px; transition: 0.3s;
+        }
+        .mode-selector label:hover {
+            background: #333;
+        }
+        .mode-selector input[type="radio"] {
+            margin-right: 10px;
+        }
+        textarea {
+            width: 100%; background: transparent; color: white; padding: 0;
+            border: none; resize: none; outline: none; font-size: 15px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            line-height: 1.5; max-height: 200px; overflow-y: auto;
+        }
+        textarea::placeholder { color: #666; }
+        
+        /* Modern Prompt Box Styles */
+        .modern-prompt-box {
+            background: #1a1b1d; border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px; padding: 12px;
+            transition: all 0.2s ease; position: relative; max-width: 100%;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .modern-prompt-box:focus-within {
+            border-color: rgba(255,255,255,0.2);
+        }
+        .modern-prompt-box.dragging {
+            border-color: #3b82f6; background: rgba(59, 130, 246, 0.05);
+        }
+        .drag-overlay {
+            position: absolute; inset: 0; background: rgba(59, 130, 246, 0.1);
+            border-radius: 12px; display: none; align-items: center;
+            justify-content: center; color: #3b82f6; font-weight: 500;
+            z-index: 10; pointer-events: none;
+        }
+        .modern-prompt-box.dragging .drag-overlay {
+            display: flex;
+        }
+        .prompt-input-wrapper {
+            padding: 4px 8px; min-height: 48px; display: flex; align-items: center; gap: 6px;
+        }
+        .prompt-input-wrapper textarea {
+            flex: 1; order: -1;
+        }
+        .prompt-actions {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 4px 6px; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 6px;
+        }
+        .left-actions { display: flex; align-items: center; gap: 8px; }
+        .icon-btn {
+            background: transparent; border: none;
+            color: #666; padding: 6px; border-radius: 6px; cursor: pointer;
+            transition: all 0.15s; display: flex; align-items: center; 
+            justify-content: center; width: 32px; height: 32px;
+        }
+        .icon-btn:hover { 
+            background: rgba(255,255,255,0.05); color: #999;
+        }
+        .mode-icon {
+            background: transparent; border: none;
+            cursor: pointer; font-size: 18px; padding: 4px;
+            width: 32px; height: 32px; display: flex; align-items: center;
+            justify-content: center; border-radius: 6px;
+            transition: all 0.15s; opacity: 0.4;
+        }
+        .mode-icon:hover {
+            background: rgba(255,255,255,0.05); opacity: 0.7;
+        }
+        .mode-icon.active {
+            opacity: 1; background: rgba(255,255,255,0.08);
+        }
+        .toggle-label { display: none; }
+        .toggle-btn.active .toggle-label { display: inline; }
+        .mode-toggles { display: flex; align-items: center; gap: 4px; }
+        .divider {
+            width: 1px; height: 16px; background: rgba(255,255,255,0.08);
+            margin: 0 8px;
+        }
+        .send-btn {
+            background: #1a1a1a; border: 1px solid #333; width: 26px; height: 26px;
+            border-radius: 6px; cursor: pointer; display: flex;
+            align-items: center; justify-content: center; transition: all 0.15s;
+        }
+        .send-btn:hover { background: #222; border-color: #444; }
+        .send-btn.has-content { background: #3b82f6; border-color: #3b82f6; }
+        .send-btn.has-content:hover { background: #2563eb; }
+        .send-btn.no-content { background: #1a1a1a; }
+        .send-btn.no-content svg { stroke: #888; }
+        .send-btn.no-content:hover svg { stroke: #aaa; }
+        .send-btn.has-content svg { stroke: #fff; }
+        .send-btn svg { transition: all 0.15s; }
+        .recording-time {
+            font-family: monospace; font-size: 14px; color: #ef4444;
+            font-weight: 600;
+        }
+        .image-preview-container {
+            display: none; padding: 8px; flex-wrap: wrap; gap: 8px;
+        }
+        .image-preview-container.has-images { display: flex; }
+        .image-preview {
+            position: relative; width: 56px; height: 56px; border-radius: 6px;
+            overflow: hidden; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);
+        }
+        .image-preview img {
+            width: 100%; height: 100%; object-fit: cover;
+        }
+        .image-preview .remove-btn {
+            position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7);
+            border: none; border-radius: 50%; width: 20px; height: 20px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; opacity: 0; transition: opacity 0.2s;
+        }
+        .image-preview:hover .remove-btn { opacity: 1; }
+        .image-preview .remove-btn svg { width: 12px; height: 12px; stroke: white; }
+        input[type="file"] {
+            width: 100%; padding: 10px; background: #222; color: white; border: 1px solid #333;
+            border-radius: 5px; margin: 10px 0; cursor: pointer;
+        }
+        button {
+            width: 100%; padding: 12px; background: #2E8BFF; border: none; color: white; font-size: 18px;
+            cursor: pointer; margin-top: 10px; border-radius: 5px; font-weight: bold;
+            transition: 0.3s;
+        }
+        button:hover:not(:disabled) {
+            background: #1a6fd4;
+        }
+        button:disabled {
+            background: #555; cursor: not-allowed;
+        }
+        .crisis-mode {
+            background: #ff4444 !important;
+        }
+        .multi-agent-mode {
+            background: #ff8c00 !important;
+        }
+        #output {
+            white-space: pre-wrap; background: #222; padding: 20px; margin-top: 20px; 
+            border-radius: 10px; border: 1px solid #333; line-height: 1.6;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        .loading {
+            color: #2E8BFF; font-size: 16px;
+        }
+        .typing-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1em;
+            background: #3b82f6;
+            animation: blink 1s infinite;
+            margin-left: 2px;
+        }
+        .recording-visualizer {
+            display: flex; align-items: center; justify-content: center;
+            gap: 2px; height: 40px; padding: 0 16px;
+        }
+        .visualizer-bar {
+            width: 2px; border-radius: 2px; background: rgba(255,255,255,0.5);
+            animation: pulse 0.5s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { height: 20%; }
+            50% { height: 100%; }
+        }
+        .recording-indicator {
+            display: flex; align-items: center; gap: 8px; padding: 8px 0;
+            justify-content: center; color: #ef4444;
+        }
+        .recording-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: #ef4444;
+            animation: recording-pulse 1s infinite;
+        }
+        @keyframes recording-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        .streaming-text {
+            animation: fadeIn 0.1s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .badge {
+            display: inline-block; padding: 5px 10px; background: #2E8BFF; 
+            border-radius: 15px; font-size: 12px; margin: 5px 0;
+        }
+        .section-reveal {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { 
+                opacity: 0; 
+                transform: translateY(10px);
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0);
+            }
+        }
+        .emoji-pulse {
+            animation: none;
+        }
+        .pdf-section {
+            padding: 10px; background: rgba(255,255,255,0.02); 
+            border-radius: 8px; display: none; border: 1px solid rgba(255,255,255,0.05);
+        }
+        .pdf-section.active {
+            display: block;
+        }
+        .chat-messages::-webkit-scrollbar { width: 6px; }
+        .chat-messages::-webkit-scrollbar-track { background: transparent; }
+        .chat-messages::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        .chat-messages::-webkit-scrollbar-thumb:hover { background: #444; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- Chat Header -->
+    <div class="chat-header">
+        <h2 style="margin: 0; font-size: 16px; font-weight: 500; color: #6b7280; letter-spacing: -0.01em;">Legal AI Assistant</h2>
+    </div>
+
+    <!-- Chat Messages Area -->
+    <div class="chat-messages" id="chatMessages">
+        <!-- Empty State -->
+        <div class="empty-state" id="emptyState">
+            <h1>⚖️</h1>
+            <h2 style="color: #d1d5db; margin-bottom: 8px; font-weight: 500; font-size: 20px;">How can I help?</h2>
+            <p style="color: #6b7280; font-size: 14px; margin-bottom: 24px;">Ask about Indian law, rights, or legal procedures</p>
+            <div style="width: 96px; height: 1px; background: rgba(255,255,255,0.08); margin: 0 auto;"></div>
+            
+            <div class="suggestions">
+                <div class="suggestion-card" onclick="useSuggestion('Can police refuse to file my FIR?')">
+                    <h4>🚔 Police Rights</h4>
+                    <p>Can police refuse FIR?</p>
+                </div>
+                <div class="suggestion-card" onclick="useSuggestion('My landlord refuses to return deposit')">
+                    <h4>🏠 Property Dispute</h4>
+                    <p>Landlord issues</p>
+                </div>
+                <div class="suggestion-card" onclick="useSuggestion('Facing domestic violence, need urgent help')">
+                    <h4>🆘 Emergency Help</h4>
+                    <p>Domestic violence support</p>
+                </div>
+                <div class="suggestion-card" onclick="useSuggestion('What are my rights during arrest?')">
+                    <h4>⚖️ Legal Rights</h4>
+                    <p>Rights during arrest</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Input Container -->
+    <div class="chat-input-container">
+        <div id="modernPromptBox" class="modern-prompt-box">
+            <div id="imagePreview" class="image-preview-container"></div>
+            
+            <div class="drag-overlay">Drop image here</div>
+            
+            <div id="recordingState" style="display: none;">
+                <div class="recording-indicator">
+                    <div class="recording-dot"></div>
+                    <span class="recording-time" id="recordingTime">00:00</span>
+                </div>
+                <div class="recording-visualizer" id="visualizer"></div>
+            </div>
+            
+            <div class="prompt-input-wrapper" id="promptWrapper">
+                <textarea id="question" placeholder="Message Legal AI..." rows="1"></textarea>
+                
+                <button class="mode-icon active" data-mode="simple" title="Quick Answer">⚡</button>
+                <button class="mode-icon" data-mode="multi-agent" title="Multi-Agent">🤖</button>
+                <button class="mode-icon" data-mode="pdf" title="PDF">📄</button>
+                
+                <button class="icon-btn" id="attachBtn" title="Attach">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57a4 4 0 1 1 5.66 5.66l-8.59 8.57a2 2 0 1 1-2.83-2.83l8.49-8.48"/>
+                    </svg>
+                </button>
+                <input type="file" id="hiddenFileInput" accept="image/*" style="display: none;">
+                
+                <button class="send-btn" id="sendBtn" title="Send message">
+                    <svg class="send-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 19V5M5 12l7-7 7 7"/>
+                    </svg>
+                    <svg class="mic-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        
+        <div id="pdf-section" class="pdf-section" style="margin-top: 12px;">
+            <label style="color: #2E8BFF; font-weight: bold; font-size: 13px;">Upload PDF:</label>
+            <input type="file" id="pdfFile" accept=".pdf" style="font-size: 13px; padding: 8px;">
+            <small style="color: #888;">Max 16MB</small>
+        </div>
+    </div>
+
+</div>
+
+<script>
+// Chat History
+let chatHistory = [];
+
+// Modern Prompt Box Functionality
+let attachedImages = [];
+let activeMode = null;
+
+// Add message to chat
+function addMessage(content, isUser = false) {
+    const chatMessages = document.getElementById('chatMessages');
+    const emptyState = document.getElementById('emptyState');
+    
+    // Hide empty state on first message
+    if (emptyState && chatHistory.length === 0) {
+        emptyState.style.display = 'none';
+    }
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${isUser ? 'user' : 'assistant'}`;
+    
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    avatar.textContent = isUser ? 'You' : 'AI';
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.style.whiteSpace = 'pre-wrap';
+    
+    if (isUser) {
+        contentDiv.textContent = content;
+    } else {
+        contentDiv.innerHTML = ''; // Will be filled by streaming
+    }
+    
+    messageDiv.appendChild(avatar);
+    messageDiv.appendChild(contentDiv);
+    chatMessages.appendChild(messageDiv);
+    
+    // Scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    chatHistory.push({ role: isUser ? 'user' : 'assistant', content, element: contentDiv });
+    
+    return contentDiv;
+}
+
+// Use suggestion
+function useSuggestion(text) {
+    textarea.value = text;
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+    updateSendButton();
+    textarea.focus();
+}
+
+// Auto-resize textarea
+const textarea = document.getElementById('question');
+textarea.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+    updateSendButton();
+});
+
+// Enter to send
+textarea.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const hasContent = textarea.value.trim() || attachedImages.length > 0;
+        if (hasContent) {
+            askAI();
+        }
+    }
+});
+
+// Update send button state
+let isRecording = false;
+let recordingTimer = null;
+let recordingSeconds = 0;
+
+function updateSendButton() {
+    const sendBtn = document.getElementById('sendBtn');
+    const hasContent = textarea.value.trim() || attachedImages.length > 0;
+    const sendIcon = sendBtn.querySelector('.send-icon');
+    const micIcon = sendBtn.querySelector('.mic-icon');
+    
+    if (hasContent || isRecording) {
+        sendBtn.classList.add('has-content');
+        sendBtn.classList.remove('no-content');
+        sendIcon.style.display = 'block';
+        micIcon.style.display = 'none';
+    } else {
+        sendBtn.classList.remove('has-content');
+        sendBtn.classList.add('no-content');
+        sendIcon.style.display = 'none';
+        micIcon.style.display = 'block';
+    }
+}
+
+// Voice recording functionality
+function startRecording() {
+    isRecording = true;
+    recordingSeconds = 0;
+    
+    document.getElementById('promptWrapper').style.display = 'none';
+    document.getElementById('recordingState').style.display = 'block';
+    promptBox.style.borderColor = 'rgba(239, 68, 68, 0.7)';
+    
+    // Create visualizer bars
+    const visualizer = document.getElementById('visualizer');
+    visualizer.innerHTML = '';
+    for (let i = 0; i < 32; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'visualizer-bar';
+        bar.style.height = `${20 + Math.random() * 80}%`;
+        bar.style.animationDelay = `${i * 0.05}s`;
+        bar.style.animationDuration = `${0.5 + Math.random() * 0.5}s`;
+        visualizer.appendChild(bar);
+    }
+    
+    // Start timer
+    recordingTimer = setInterval(() => {
+        recordingSeconds++;
+        const mins = Math.floor(recordingSeconds / 60).toString().padStart(2, '0');
+        const secs = (recordingSeconds % 60).toString().padStart(2, '0');
+        document.getElementById('recordingTime').textContent = `${mins}:${secs}`;
+    }, 1000);
+    
+    updateSendButton();
+}
+
+function stopRecording() {
+    isRecording = false;
+    
+    if (recordingTimer) {
+        clearInterval(recordingTimer);
+        recordingTimer = null;
+    }
+    
+    document.getElementById('promptWrapper').style.display = 'flex';
+    document.getElementById('recordingState').style.display = 'none';
+    promptBox.style.borderColor = 'rgba(255,255,255,0.1)';
+    
+    const duration = recordingSeconds;
+    recordingSeconds = 0;
+    
+    // Add voice message to chat
+    if (duration > 0) {
+        addMessage(`🎤 Voice message (${duration} seconds)`, true);
+    }
+    
+    updateSendButton();
+}
+
+// File attachment
+document.getElementById('attachBtn').addEventListener('click', () => {
+    document.getElementById('hiddenFileInput').click();
+});
+
+document.getElementById('hiddenFileInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            attachedImages = [{ file, url: event.target.result }];
+            renderImagePreviews();
+            updateSendButton();
+        };
+        reader.readAsDataURL(file);
+    }
+    this.value = '';
+});
+
+// Drag and drop functionality
+const promptBox = document.getElementById('modernPromptBox');
+let dragCounter = 0;
+
+promptBox.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    dragCounter++;
+    promptBox.classList.add('dragging');
+});
+
+promptBox.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dragCounter--;
+    if (dragCounter === 0) {
+        promptBox.classList.remove('dragging');
+    }
+});
+
+promptBox.addEventListener('dragover', (e) => {
+    e.preventDefault();
+});
+
+promptBox.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragCounter = 0;
+    promptBox.classList.remove('dragging');
+    
+    const files = Array.from(e.dataTransfer.files);
+    const imageFile = files.find(f => f.type.startsWith('image/'));
+    
+    if (imageFile) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            attachedImages = [{ file: imageFile, url: event.target.result }];
+            renderImagePreviews();
+            updateSendButton();
+        };
+        reader.readAsDataURL(imageFile);
+    }
+});
+
+// Render image previews
+function renderImagePreviews() {
+    const container = document.getElementById('imagePreview');
+    if (attachedImages.length === 0) {
+        container.classList.remove('has-images');
+        container.innerHTML = '';
+        return;
+    }
+    
+    container.classList.add('has-images');
+    container.innerHTML = attachedImages.map((img, index) => `
+        <div class="image-preview">
+            <img src="${img.url}" alt="Preview">
+            <button class="remove-btn" onclick="removeImage(${index})">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+    `).join('');
+}
+
+function removeImage(index) {
+    attachedImages.splice(index, 1);
+    renderImagePreviews();
+    updateSendButton();
+}
+
+// Paste image support
+document.addEventListener('paste', function(e) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    
+    for (let item of items) {
+        if (item.type.startsWith('image/')) {
+            const file = item.getAsFile();
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    attachedImages = [{ file, url: event.target.result }];
+                    renderImagePreviews();
+                    updateSendButton();
+                };
+                reader.readAsDataURL(file);
+                e.preventDefault();
+                break;
+            }
+        }
+    }
+});
+
+// Old toggle modes removed - now using mode icons instead
+
+// Send button handler
+const sendButton = document.getElementById('sendBtn');
+if (sendButton) {
+    console.log('✅ Send button found!');
+    sendButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        console.log('🔥 Send button clicked!');
+        console.log('Recording:', isRecording);
+        console.log('Text:', textarea.value);
+        
+        if (isRecording) {
+            stopRecording();
+        } else {
+            const hasContent = textarea.value.trim() || attachedImages.length > 0;
+            console.log('Has content:', hasContent);
+            if (hasContent) {
+                console.log('Calling askAI()');
+                askAI();
+            } else {
+                console.log('Starting recording');
+                startRecording();
+            }
+        }
+    });
+} else {
+    console.error('❌ Send button NOT found!');
+}
+
+// Mode buttons (Quick/Multi-Agent/PDF)
+let selectedMode = 'simple';
+document.querySelectorAll('.mode-icon').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const clickedMode = this.dataset.mode;
+        
+        // If clicking active button, deactivate it
+        if (this.classList.contains('active')) {
+            this.classList.remove('active');
+            selectedMode = null;
+            document.getElementById('pdf-section').classList.remove('active');
+            return;
+        }
+        
+        // Deactivate all mode buttons
+        document.querySelectorAll('.mode-icon').forEach(b => b.classList.remove('active'));
+        
+        // Activate clicked button
+        this.classList.add('active');
+        selectedMode = clickedMode;
+        
+        // Show/hide PDF section
+        const pdfSection = document.getElementById('pdf-section');
+        if (selectedMode === 'pdf') {
+            pdfSection.classList.add('active');
+        } else {
+            pdfSection.classList.remove('active');
+        }
+        
+        // Update placeholder based on mode
+        const placeholders = {
+            'simple': 'Type your legal question...',
+            'multi-agent': 'Ask for multi-agent analysis...',
+            'pdf': 'Upload PDF and ask about it...'
+        };
+        textarea.placeholder = selectedMode ? placeholders[selectedMode] : 'Message Legal AI...';
+    });
+});
+
+// Initialize
+updateSendButton();
+
+async function askAI() {
+    const q = document.getElementById("question").value;
+    const btn = document.getElementById("sendBtn");
+    const mode = selectedMode || 'simple'; // Use selectedMode from mode buttons, default to simple
+
+    if (!q.trim() && mode !== 'pdf') {
+        return;
+    }
+
+    // Add user message to chat
+    addMessage(q, true);
+    
+    // Clear input
+    textarea.value = '';
+    textarea.style.height = 'auto';
+    updateSendButton();
+
+    // Show loading state
+    btn.disabled = true;
+    
+    // Add AI response placeholder
+    const aiMessageContent = addMessage('', false);
+
+    try {
+        const startTime = Date.now();
+
+        if (mode === 'pdf') {
+            // PDF Analysis Mode (non-streaming)
+            const fileInput = document.getElementById('pdfFile');
+            if (!fileInput.files.length) {
+                aiMessageContent.textContent = "⚠️ Please upload a PDF file!";
+                btn.disabled = false;
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('question', q || 'Analyze this document and explain my rights');
+
+            const response = await fetch("http://localhost:5000/analyze-pdf", {
+                method: "POST",
+                body: formData
+            });
+
+            const data = await response.json();
+            
+            if (data.error) {
+                output.innerText = "❌ Error: " + data.error;
+            } else {
+                output.innerText = data.response;
+            }
+
+        } else if (mode === 'multi-agent') {
+            // Multi-agent mode (non-streaming for now)
+            const response = await fetch("http://localhost:5000/multi-agent", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({question: q})
+            });
+
+            const data = await response.json();
+            
+            if (data.error) {
+                output.innerText = "❌ Error: " + data.error;
+            } else {
+                output.innerText = data.response;
+            }
+
+        } else {
+            // STREAMING MODE (ChatGPT-like typing effect)
+            aiMessageContent.innerHTML = '<span class="typing-cursor"></span>';  // Show cursor
+            
+            // Add stop functionality
+            let stopStreaming = false;
+            const stopBtn = btn.querySelector('.send-icon').parentElement;
+            const originalHTML = stopBtn.innerHTML;
+            stopBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+            stopBtn.onclick = () => { stopStreaming = true; };
+            
+            const response = await fetch("http://localhost:5000/ask-stream", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({question: q})
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let fullText = "";
+            let buffer = "";  // Buffer for smooth character-by-character display
+            
+            // Enhanced character-by-character typing function
+            const typeWriter = async (text) => {
+                const chars = text.split('');
+                for (let i = 0; i < chars.length; i++) {
+                    if (stopStreaming) break; // Stop if user clicks stop
+                    
+                    fullText += chars[i];
+                    
+                    // Highlight section headers with emoji pulse
+                    let displayText = fullText;
+                    if (fullText.includes('🟦') || fullText.includes('🟧') || 
+                        fullText.includes('🟩') || fullText.includes('🟪') || 
+                        fullText.includes('🟨') || fullText.includes('🟥')) {
+                        // Add pulse effect to emojis
+                        displayText = displayText.replace(/🟦/g, '<span class="emoji-pulse">🟦</span>');
+                        displayText = displayText.replace(/🟧/g, '<span class="emoji-pulse">🟧</span>');
+                        displayText = displayText.replace(/🟩/g, '<span class="emoji-pulse">🟩</span>');
+                        displayText = displayText.replace(/🟪/g, '<span class="emoji-pulse">🟪</span>');
+                        displayText = displayText.replace(/🟨/g, '<span class="emoji-pulse">🟨</span>');
+                        displayText = displayText.replace(/🟥/g, '<span class="emoji-pulse">🟥</span>');
+                        displayText = displayText.replace(/⭐/g, '<span class="emoji-pulse">⭐</span>');
+                    }
+                    
+                    aiMessageContent.innerHTML = displayText + '<span class="typing-cursor"></span>';
+                    // No auto-scroll - user can freely scroll and read while generation continues
+                    
+                    // Vary speed for more natural ChatGPT-like effect
+                    let delay;
+                    if (chars[i] === '\n') delay = 5;  // Fast newlines
+                    else if (chars[i] === ' ') delay = 8;  // Slightly faster spaces
+                    else if ('.,;:!?'.includes(chars[i])) delay = 15;  // Pause at punctuation
+                    else delay = Math.random() * 12 + 3;  // Vary character speed
+                    
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            };
+
+            while (true) {
+                if (stopStreaming) break; // Stop reading if user clicks stop
+                
+                const {done, value} = await reader.read();
+                
+                if (done) break;
+                
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const jsonStr = line.substring(6);
+                        try {
+                            const data = JSON.parse(jsonStr);
+                            
+                            if (data.chunk) {
+                                buffer += data.chunk;
+                                
+                                // Type out accumulated buffer
+                                if (buffer.length > 0) {
+                                    await typeWriter(buffer);
+                                    buffer = "";
+                                }
+                            }
+                            
+                            if (data.done) {
+                                console.log("✅ Streaming complete!");
+                                // Remove cursor and keep emoji effects
+                                let finalText = fullText;
+                                finalText = finalText.replace(/🟦/g, '<span class="emoji-pulse">🟦</span>');
+                                finalText = finalText.replace(/🟧/g, '<span class="emoji-pulse">🟧</span>');
+                                finalText = finalText.replace(/🟩/g, '<span class="emoji-pulse">🟩</span>');
+                                finalText = finalText.replace(/🟪/g, '<span class="emoji-pulse">🟪</span>');
+                                finalText = finalText.replace(/🟨/g, '<span class="emoji-pulse">🟨</span>');
+                                finalText = finalText.replace(/🟥/g, '<span class="emoji-pulse">🟥</span>');
+                                finalText = finalText.replace(/⭐/g, '<span class="emoji-pulse">⭐</span>');
+                                aiMessageContent.innerHTML = finalText;
+                            }
+                        } catch (e) {
+                            // Skip malformed JSON
+                        }
+                    }
+                }
+            }
+            
+            // Type any remaining buffer
+            if (buffer.length > 0) {
+                await typeWriter(buffer);
+            }
+            
+            // Remove cursor and keep emoji effects
+            let finalText = fullText;
+            finalText = finalText.replace(/🟦/g, '<span class="emoji-pulse">🟦</span>');
+            finalText = finalText.replace(/🟧/g, '<span class="emoji-pulse">🟧</span>');
+            finalText = finalText.replace(/🟩/g, '<span class="emoji-pulse">🟩</span>');
+            finalText = finalText.replace(/🟪/g, '<span class="emoji-pulse">🟪</span>');
+            finalText = finalText.replace(/🟨/g, '<span class="emoji-pulse">🟨</span>');
+            finalText = finalText.replace(/🟥/g, '<span class="emoji-pulse">🟥</span>');
+            finalText = finalText.replace(/⭐/g, '<span class="emoji-pulse">⭐</span>');
+            aiMessageContent.innerHTML = finalText;
+        }
+        
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`Response time: ${elapsed}s`);
+        
+    } catch (error) {
+        aiMessageContent.textContent = "❌ Error: " + error.message + "\n\nMake sure server.py is running!";
+    } finally {
+        // Restore send button
+        if (stopBtn) {
+            stopBtn.innerHTML = originalHTML;
+            stopBtn.onclick = null;
+        }
+        
+        // If stopped, remove cursor and finalize display
+        if (stopStreaming) {
+            let finalText = fullText;
+            finalText = finalText.replace(/🟦/g, '<span class="emoji-pulse">🟦</span>');
+            finalText = finalText.replace(/🟧/g, '<span class="emoji-pulse">🟧</span>');
+            finalText = finalText.replace(/🟩/g, '<span class="emoji-pulse">🟩</span>');
+            finalText = finalText.replace(/🟪/g, '<span class="emoji-pulse">🟪</span>');
+            finalText = finalText.replace(/🟨/g, '<span class="emoji-pulse">🟨</span>');
+            finalText = finalText.replace(/🟥/g, '<span class="emoji-pulse">🟥</span>');
+            finalText = finalText.replace(/⭐/g, '<span class="emoji-pulse">⭐</span>');
+            aiMessageContent.innerHTML = finalText;
+            console.log("⏹️ Streaming stopped by user");
+        }
+        
+        btn.disabled = false;
+        attachedImages = [];
+        renderImagePreviews();
+        updateSendButton();
+    }
+}
+
+// Allow Enter key to submit (Ctrl+Enter for new line)
+document.getElementById('question').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
+        e.preventDefault();
+        askAI();
+    }
+});
+</script>
+
+</body>
+</html>
